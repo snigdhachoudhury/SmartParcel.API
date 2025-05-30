@@ -56,6 +56,36 @@ namespace SmartParcel.API.Controllers
             });
         }
 
+        [Authorize(Roles = "Sender")]
+        [HttpPost("create-with-parcel")]
+        public IActionResult CreateParcel(Parcel parcel)
+        {
+            parcel.TrackingId = Guid.NewGuid().ToString().Substring(0, 8); // Generate tracking ID
+            parcel.CreatedAt = DateTime.UtcNow;
+
+            _context.Parcels.Add(parcel);
+            _context.SaveChanges();
+
+            return Ok(new { TrackingId = parcel.TrackingId, Message = "Parcel created successfully." });
+        }
+
+        [Authorize(Roles = "Sender")]
+        [HttpGet("track/{trackingId}")]
+        public IActionResult TrackParcel(string trackingId)
+        {
+            var parcel = _context.Parcels.FirstOrDefault(p => p.TrackingId == trackingId);
+            if (parcel == null)
+                return NotFound(new { Message = "Parcel not found." });
+
+            return Ok(new
+            {
+                parcel.TrackingId,
+                parcel.Status,
+                parcel.DeliveryLocation,
+                parcel.DeliveryDate
+            });
+        }
+
         [Authorize(Roles = "Handler")]
         [HttpPost("scan/{trackingId}")]
         public IActionResult ScanParcel(string trackingId)
