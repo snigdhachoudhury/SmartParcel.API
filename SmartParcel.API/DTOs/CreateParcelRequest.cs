@@ -19,9 +19,9 @@ namespace SmartParcel.API.DTOs
         [Range(0.001, double.MaxValue, ErrorMessage = "Weight must be greater than zero.")]
         public decimal Weight { get; set; }
 
-        [Required(ErrorMessage = "Weight unit is required.")]
-        [RegularExpression("^(g|kg|lb)$", ErrorMessage = "Weight unit must be 'g', 'kg', or 'lb'.")]
-        public string? WeightUnit { get; set; }
+       // [Required(ErrorMessage = "Weight unit is required.")]
+       // [RegularExpression("^(g|kg|lb)$", ErrorMessage = "Weight unit must be 'g', 'kg', or 'lb'.")]
+        //public string? WeightUnit { get; set; }
 
 
 
