@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using SmartParcel.API.Data;
 using SmartParcel.API.DTOs;
 using SmartParcel.API.Models;
+using System.Security.Claims; // Required for ClaimTypes
+using Microsoft.EntityFrameworkCore; // Required for ToListAsync and FirstOrDefaultAsync
 
 namespace SmartParcel.API.Controllers
 {
@@ -17,6 +19,7 @@ namespace SmartParcel.API.Controllers
             _context = context;
         }
 
+        // SENDER: Create a new parcel using a DTO
         [Authorize(Roles = "Sender")]
         [HttpPost("create")]
         public IActionResult CreateParcel([FromBody] CreateParcelRequest request)
@@ -43,11 +46,12 @@ namespace SmartParcel.API.Controllers
                 DeliveryLocation = request.DeliveryLocation,
                 PickupDate = request.PickupDate,
                 DeliveryDate = request.DeliveryDate,
-                Status = "Created"
+                Status = "Created",
+                CreatedAt = DateTime.UtcNow // Ensure CreatedAt is set
             };
 
             _context.Set<Parcel>().Add(parcel);
-            _context.SaveChanges();
+            _context.SaveChanges(); // Synchronous save
 
             return Ok(new
             {
@@ -56,24 +60,26 @@ namespace SmartParcel.API.Controllers
             });
         }
 
+        // SENDER: Create a new parcel using the Parcel model directly (less common for client-side)
         [Authorize(Roles = "Sender")]
         [HttpPost("create-with-parcel")]
         public IActionResult CreateParcel(Parcel parcel)
         {
             parcel.TrackingId = Guid.NewGuid().ToString().Substring(0, 8); // Generate tracking ID
-            parcel.CreatedAt = DateTime.UtcNow;
+            parcel.CreatedAt = DateTime.UtcNow; // Ensure CreatedAt is set
 
             _context.Parcels.Add(parcel);
-            _context.SaveChanges();
+            _context.SaveChanges(); // Synchronous save
 
             return Ok(new { TrackingId = parcel.TrackingId, Message = "Parcel created successfully." });
         }
 
+        // SENDER: Track a single parcel by tracking ID (returns partial data)
         [Authorize(Roles = "Sender")]
         [HttpGet("track/{trackingId}")]
-        public IActionResult TrackParcel(string trackingId)
+        public async Task<IActionResult> TrackParcel(string trackingId)
         {
-            var parcel = _context.Parcels.FirstOrDefault(p => p.TrackingId == trackingId);
+            var parcel = await _context.Parcels.FirstOrDefaultAsync(p => p.TrackingId == trackingId);
             if (parcel == null)
                 return NotFound(new { Message = "Parcel not found." });
 
@@ -86,18 +92,19 @@ namespace SmartParcel.API.Controllers
             });
         }
 
+        // HANDLER: Scan a parcel (update status to "Scanned")
         [Authorize(Roles = "Handler")]
         [HttpPost("scan/{trackingId}")]
-        public IActionResult ScanParcel(string trackingId)
+        public async Task<IActionResult> ScanParcel(string trackingId)
         {
-            var parcel = _context.Set<Parcel>().FirstOrDefault(p => p.TrackingId == trackingId);
+            var parcel = await _context.Set<Parcel>().FirstOrDefaultAsync(p => p.TrackingId == trackingId);
             if (parcel == null)
             {
                 return NotFound(new { Message = "Parcel not found." });
             }
 
             parcel.Status = "Scanned";
-            _context.SaveChanges();
+            await _context.SaveChangesAsync(); // Asynchronous save
 
             return Ok(new
             {
@@ -107,18 +114,19 @@ namespace SmartParcel.API.Controllers
             });
         }
 
+        // HANDLER: Hand over a parcel (update status to "HandedOver")
         [Authorize(Roles = "Handler")]
         [HttpPost("handover/{trackingId}")]
-        public IActionResult HandoverParcel(string trackingId)
+        public async Task<IActionResult> HandoverParcel(string trackingId)
         {
-            var parcel = _context.Set<Parcel>().FirstOrDefault(p => p.TrackingId == trackingId);
+            var parcel = await _context.Set<Parcel>().FirstOrDefaultAsync(p => p.TrackingId == trackingId);
             if (parcel == null)
             {
                 return NotFound(new { Message = "Parcel not found." });
             }
 
             parcel.Status = "HandedOver";
-            _context.SaveChanges();
+            await _context.SaveChangesAsync(); // Asynchronous save
 
             return Ok(new
             {
@@ -131,18 +139,18 @@ namespace SmartParcel.API.Controllers
         // ADMIN: View all parcels
         [Authorize(Roles = "Admin")]
         [HttpGet("all-parcels")]
-        public IActionResult GetAllParcels()
+        public async Task<IActionResult> GetAllParcels()
         {
-            var parcels = _context.Set<Parcel>().ToList();
+            var parcels = await _context.Set<Parcel>().ToListAsync();
             return Ok(parcels);
         }
 
-        // ADMIN: View a parcel by tracking ID
+        // ADMIN: View a single parcel by tracking ID
         [Authorize(Roles = "Admin")]
         [HttpGet("{trackingId}")]
-        public IActionResult GetParcelByTrackingId(string trackingId)
+        public async Task<IActionResult> GetParcelByTrackingId(string trackingId)
         {
-            var parcel = _context.Set<Parcel>().FirstOrDefault(p => p.TrackingId == trackingId);
+            var parcel = await _context.Set<Parcel>().FirstOrDefaultAsync(p => p.TrackingId == trackingId);
             if (parcel == null)
             {
                 return NotFound(new { Message = "Parcel not found." });
@@ -151,14 +159,43 @@ namespace SmartParcel.API.Controllers
             return Ok(parcel);
         }
 
-        // ADMIN: Get parcels by status (optional but useful)
+        // ADMIN: Get parcels by status
         [Authorize(Roles = "Admin")]
         [HttpGet("status/{status}")]
-        public IActionResult GetParcelsByStatus(string status)
+        public async Task<IActionResult> GetParcelsByStatus(string status)
         {
-            var parcels = _context.Set<Parcel>()
+            var parcels = await _context.Set<Parcel>()
                 .Where(p => p.Status.Equals(status, StringComparison.OrdinalIgnoreCase))
-                .ToList();
+                .ToListAsync();
+
+            return Ok(parcels);
+        }
+
+        // --- NEW ENDPOINT FOR SENDER'S PARCELS ---
+        // SENDER: View only their own parcels
+        [Authorize(Roles = "Sender")]
+        [HttpGet("my-parcels")] // New route: /api/Parcel/my-parcels
+        public async Task<IActionResult> GetMyParcels()
+        {
+            // Get the current user's email from the JWT claims.
+            // This assumes your authentication token contains a claim for the user's email.
+            var userEmail = User.FindFirst(ClaimTypes.Email)?.Value;
+
+            if (string.IsNullOrEmpty(userEmail))
+            {
+                return Unauthorized("User email claim not found in token.");
+            }
+
+            // Fetch parcels where SenderEmail matches the authenticated user's email
+            var parcels = await _context.Parcels
+                                        .Where(p => p.SenderEmail == userEmail)
+                                        .ToListAsync();
+
+            if (parcels == null || !parcels.Any())
+            {
+                // It's usually better to return an empty array (Ok) than NotFound for an empty list
+                return Ok(new List<Parcel>()); // Return an empty list if no parcels found
+            }
 
             return Ok(parcels);
         }
