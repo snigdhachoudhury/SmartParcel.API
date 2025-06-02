@@ -13,6 +13,6 @@ namespace SmartParcel.API.DTOs
         public string Password { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Role is required.")]
-        public string Role { get; set; } = "Sender";
+        public required string Role { get; set; }
     }
 }

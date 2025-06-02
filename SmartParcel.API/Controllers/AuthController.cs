@@ -4,7 +4,7 @@ using SmartParcel.API.Data;
 using SmartParcel.API.DTOs;
 using SmartParcel.API.Models;
 using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims; // Added for ClaimTypes
+using System.Security.Claims; // Required for ClaimTypes
 using System.Text;
 using Microsoft.AspNetCore.Identity;
 using System.Globalization;
@@ -29,37 +29,33 @@ namespace SmartParcel.API.Controllers
         }
 
         [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody] RegisterRequest request) // Added [FromBody] and async
+        public async Task<IActionResult> Register([FromBody] RegisterRequest request)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
 
-            // Use AnyAsync for asynchronous database check
             if (await _context.Users.AnyAsync(u => u.Email == request.Email))
-                return BadRequest("User already exists.");
+                return BadRequest(new { message = "User already exists." });
 
             var user = new User
             {
                 Email = request.Email,
-                // Ensure the role is consistently TitleCase before saving
                 Role = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(request.Role.ToLowerInvariant())
             };
 
             user.PasswordHash = _hasher.HashPassword(user, request.Password);
 
-            await _context.Users.AddAsync(user); // Use AddAsync
-            await _context.SaveChangesAsync(); // Use SaveChangesAsync
+            await _context.Users.AddAsync(user);
+            await _context.SaveChangesAsync();
 
             return Ok(new { Message = "User registered successfully.", Email = request.Email });
         }
 
         [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginRequest request) // Added [FromBody] and async
+        public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
-            // Basic validation, consider using ModelState.IsValid if LoginRequest has data annotations
             if (string.IsNullOrEmpty(request.Email) || string.IsNullOrEmpty(request.Password))
                 return BadRequest("Email and password are required.");
 
-            // Use FirstOrDefaultAsync for asynchronous database query
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
 
             if (user == null || string.IsNullOrEmpty(user.PasswordHash))
@@ -69,11 +65,9 @@ namespace SmartParcel.API.Controllers
             if (passwordMatch == PasswordVerificationResult.Failed)
                 return Unauthorized("Incorrect password.");
 
-            // Ensure the role is consistently TitleCase before generating the token,
-            // in case it was stored incorrectly or retrieved with different casing.
             user.Role = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(user.Role.ToLowerInvariant());
 
-            var token = GenerateJwtToken(user); // This method can remain synchronous if it doesn't do I/O
+            var token = GenerateJwtToken(user);
             return Ok(new { token });
         }
 
@@ -90,7 +84,7 @@ namespace SmartParcel.API.Controllers
             {
                 new Claim(JwtRegisteredClaimNames.Sub, user.Email ?? string.Empty),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                // FIX: Use the actual user's role from the database, ensuring it's TitleCase
+                new Claim(ClaimTypes.Email, user.Email ?? string.Empty), // FIX: Explicitly add ClaimTypes.Email
                 new Claim(ClaimTypes.Role, user.Role ?? string.Empty)
             };
 

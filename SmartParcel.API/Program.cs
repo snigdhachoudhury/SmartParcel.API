@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SmartParcel.API.Data;
 using System.Text;
+using System; // For InvalidOperationException
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,7 +22,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Issuer"],
+            ValidAudience = builder.Configuration["Jwt:Audience"], // FIX: Changed to Jwt:Audience
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]
                     ?? throw new InvalidOperationException("JWT key is missing"))),
@@ -63,10 +64,23 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 // ✅ 4. Enable CORS
-builder.Services.AddCors();
+// Define a specific policy name
+var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(name: MyAllowSpecificOrigins,
+                      policy =>
+                      {
+                          policy.WithOrigins("http://localhost:5173", // Your React app's development URL
+                                             "http://127.0.0.1:5173") // Often useful to include both
+                                .AllowAnyHeader()
+                                .AllowAnyMethod()
+                                .AllowCredentials(); // FIX: Added AllowCredentials for auth headers
+                      });
+});
 
 var app = builder.Build();
-
+ 
 // ✅ Enable Swagger only in development
 if (app.Environment.IsDevelopment())
 {
@@ -74,11 +88,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// ✅ Middleware order matters! (Enable CORS first)
-app.UseCors(policy =>
-    policy.AllowAnyOrigin()
-          .AllowAnyHeader()
-          .AllowAnyMethod());
+// ✅ Middleware order matters!
+// FIX: Use the named CORS policy
+app.UseCors(MyAllowSpecificOrigins);
 
 // ✅ Enable Authentication & Authorization
 app.UseAuthentication();
