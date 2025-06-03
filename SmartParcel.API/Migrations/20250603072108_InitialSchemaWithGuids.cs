@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace SmartParcel.API.Migrations
 {
     /// <inheritdoc />
-    public partial class InitPostgres : Migration
+    public partial class InitialSchemaWithGuids : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -32,18 +32,21 @@ namespace SmartParcel.API.Migrations
                 name: "Parcels",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    TrackingId = table.Column<string>(type: "text", nullable: true),
-                    SenderEmail = table.Column<string>(type: "text", nullable: true),
-                    RecipientEmail = table.Column<string>(type: "text", nullable: true),
-                    Description = table.Column<string>(type: "text", nullable: true),
-                    Weight = table.Column<string>(type: "text", nullable: true),
-                    PickupLocation = table.Column<string>(type: "text", nullable: true),
-                    DeliveryLocation = table.Column<string>(type: "text", nullable: true),
-                    PickupDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    DeliveryDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    Status = table.Column<string>(type: "text", nullable: false)
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    TrackingId = table.Column<string>(type: "text", nullable: false),
+                    SenderEmail = table.Column<string>(type: "text", nullable: false),
+                    RecipientEmail = table.Column<string>(type: "text", nullable: false),
+                    Description = table.Column<string>(type: "text", nullable: false),
+                    Weight = table.Column<string>(type: "text", nullable: false),
+                    PickupLocation = table.Column<string>(type: "text", nullable: false),
+                    DeliveryLocation = table.Column<string>(type: "text", nullable: false),
+                    ExpectedPickupDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    ExpectedDeliveryDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    ActualPickupDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    ActualDeliveryDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    Status = table.Column<string>(type: "text", nullable: false, defaultValue: "Created"),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP"),
+                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
                 },
                 constraints: table =>
                 {

@@ -1,16 +1,16 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore; // Added for async EF Core methods
 using Microsoft.IdentityModel.Tokens;
 using SmartParcel.API.Data;
 using SmartParcel.API.DTOs;
 using SmartParcel.API.Models;
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
+using System.Linq; // Added for LINQ extension methods
 using System.Security.Claims; // Required for ClaimTypes
 using System.Text;
-using Microsoft.AspNetCore.Identity;
-using System.Globalization;
-using System.Linq; // Added for LINQ extension methods
 using System.Threading.Tasks; // Added for Task
-using Microsoft.EntityFrameworkCore; // Added for async EF Core methods
 
 namespace SmartParcel.API.Controllers
 {
@@ -70,6 +70,7 @@ namespace SmartParcel.API.Controllers
             var token = GenerateJwtToken(user);
             return Ok(new { token });
         }
+     
 
         private string GenerateJwtToken(User user)
         {

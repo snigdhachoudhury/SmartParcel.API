@@ -46,27 +46,33 @@ namespace SmartParcel.API.Controllers
 
         [HttpPost("create")]
 
-        public IActionResult CreateParcel([FromBody] CreateParcelRequest request)
+        public async Task<IActionResult> CreateParcel([FromBody] CreateParcelRequest request)
 
         {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
 
             var trackingId = $"PCL-{DateTime.UtcNow:yyyyMMddHHmmssfff}";
 
-            if (request.PickupDate.Kind == DateTimeKind.Unspecified)
+
+
+            // Convert to UTC for expected dates
+
+            if (request.ExpectedPickupDate.Kind == DateTimeKind.Unspecified)
 
             {
 
-                request.PickupDate = DateTime.SpecifyKind(request.PickupDate, DateTimeKind.Utc);
+                request.ExpectedPickupDate = DateTime.SpecifyKind(request.ExpectedPickupDate, DateTimeKind.Utc);
 
             }
 
-
-
-            if (request.DeliveryDate.Kind == DateTimeKind.Unspecified)
+            if (request.ExpectedDeliveryDate.Kind == DateTimeKind.Unspecified)
 
             {
 
-                request.DeliveryDate = DateTime.SpecifyKind(request.DeliveryDate, DateTimeKind.Utc);
+                request.ExpectedDeliveryDate = DateTime.SpecifyKind(request.ExpectedDeliveryDate, DateTimeKind.Utc);
 
             }
 
@@ -78,45 +84,27 @@ namespace SmartParcel.API.Controllers
 
                 TrackingId = trackingId,
 
-                SenderEmail = request.SenderEmail,
-
-                RecipientEmail = request.RecipientEmail,
-
-                Description = request.Description,
-
-                Weight = request.Weight.ToString(), // Fix: Convert decimal to string
-
-                PickupLocation = request.PickupLocation,
-
-                DeliveryLocation = request.DeliveryLocation,
-
-                PickupDate = request.PickupDate,
-
-                DeliveryDate = request.DeliveryDate,
-
+                SenderEmail = request.SenderEmail ?? throw new ArgumentNullException(nameof(request.SenderEmail)),
+                RecipientEmail = request.RecipientEmail ?? throw new ArgumentNullException(nameof(request.RecipientEmail)),
+                Description = request.Description ?? throw new ArgumentNullException(nameof(request.Description)),
+                Weight = request.Weight.ToString(),
+                PickupLocation = request.PickupLocation ?? throw new ArgumentNullException(nameof(request.PickupLocation)),
+                DeliveryLocation = request.DeliveryLocation ?? throw new ArgumentNullException(nameof(request.DeliveryLocation)),
+                ExpectedPickupDate = request.ExpectedPickupDate,
+                ExpectedDeliveryDate = request.ExpectedDeliveryDate,
                 Status = "Created",
-
-                CreatedAt = DateTime.UtcNow // Ensure CreatedAt is set
-
-            };
+                CreatedAt = DateTime.UtcNow
+            };
 
 
 
-            _context.Set<Parcel>().Add(parcel);
+            await _context.Parcels.AddAsync(parcel);
 
-            _context.SaveChanges(); // Synchronous save
+            await _context.SaveChangesAsync();
 
 
 
-            return Ok(new
-
-            {
-
-                parcel.TrackingId,
-
-                Message = "Parcel created successfully."
-
-            });
+            return Ok(new { parcel.TrackingId, Message = "Parcel created successfully." });
 
         }
 
@@ -134,17 +122,17 @@ namespace SmartParcel.API.Controllers
 
             parcel.TrackingId = Guid.NewGuid().ToString().Substring(0, 8); // Generate tracking ID
 
-            parcel.CreatedAt = DateTime.UtcNow; // Ensure CreatedAt is set
+            parcel.CreatedAt = DateTime.UtcNow; // Ensure CreatedAt is set
 
 
 
-            _context.Parcels.Add(parcel);
+            _context.Parcels.Add(parcel);
 
             _context.SaveChanges(); // Synchronous save
 
 
 
-            return Ok(new { TrackingId = parcel.TrackingId, Message = "Parcel created successfully." });
+            return Ok(new { TrackingId = parcel.TrackingId, Message = "Parcel created successfully." });
 
         }
 
@@ -178,7 +166,13 @@ namespace SmartParcel.API.Controllers
 
                 parcel.DeliveryLocation,
 
-                parcel.DeliveryDate
+                ExpectedPickup = parcel.ExpectedPickupDate,
+
+                ExpectedDelivery = parcel.ExpectedDeliveryDate,
+
+                ActualPickup = parcel.ActualPickupDate,
+
+                ActualDelivery = parcel.ActualDeliveryDate
 
             });
 
@@ -208,24 +202,17 @@ namespace SmartParcel.API.Controllers
 
 
 
-            parcel.Status = "Scanned";
+            parcel.Status = "Delivered";
+            parcel.ActualDeliveryDate = DateTime.UtcNow; // Optionally set delivery date
 
-            await _context.SaveChangesAsync(); // Asynchronous save
+            await _context.SaveChangesAsync();
 
-
-
-            return Ok(new
-
+            return Ok(new
             {
-
                 parcel.TrackingId,
-
                 parcel.Status,
-
-                Message = "Parcel scanned successfully."
-
+                Message = "Parcel scanned and marked as Delivered."
             });
-
         }
 
 
@@ -258,7 +245,7 @@ namespace SmartParcel.API.Controllers
 
 
 
-            return Ok(new
+            return Ok(new
 
             {
 
@@ -272,9 +259,11 @@ namespace SmartParcel.API.Controllers
 
         }
 
-        // HANDLER: Update parcel status (NEW ENDPOINT)
 
-        [Authorize(Roles = "Handler")]
+
+        // HANDLER: Update parcel status and actual dates
+
+        [Authorize(Roles = "Handler")]
 
         [HttpPut("{trackingId}/status")]
 
@@ -282,7 +271,7 @@ namespace SmartParcel.API.Controllers
 
         {
 
-            var parcel = await _context.Set<Parcel>().FirstOrDefaultAsync(p => p.TrackingId == trackingId);
+            var parcel = await _context.Parcels.FirstOrDefaultAsync(p => p.TrackingId == trackingId);
 
             if (parcel == null)
 
@@ -296,6 +285,28 @@ namespace SmartParcel.API.Controllers
 
             parcel.Status = request.Status;
 
+
+
+            // Update actual dates if provided by handler
+
+            if (request.ActualPickupDate.HasValue)
+
+            {
+
+                parcel.ActualPickupDate = request.ActualPickupDate.Value;
+
+            }
+
+            if (request.ActualDeliveryDate.HasValue)
+
+            {
+
+                parcel.ActualDeliveryDate = request.ActualDeliveryDate.Value;
+
+            }
+
+
+
             await _context.SaveChangesAsync();
 
 
@@ -308,7 +319,15 @@ namespace SmartParcel.API.Controllers
 
                 parcel.Status,
 
-                Message = "Parcel status updated successfully."
+                ExpectedPickup = parcel.ExpectedPickupDate,
+
+                ExpectedDelivery = parcel.ExpectedDeliveryDate,
+
+                ActualPickup = parcel.ActualPickupDate,
+
+                ActualDelivery = parcel.ActualDeliveryDate,
+
+                Message = "Parcel status and actual dates updated successfully."
 
             });
 
@@ -360,6 +379,8 @@ namespace SmartParcel.API.Controllers
 
         }
 
+
+
         // ADMIN: Get parcels by status
 
         [Authorize(Roles = "Admin")]
@@ -396,11 +417,11 @@ namespace SmartParcel.API.Controllers
 
         {
 
-            // Get the current user's email from the JWT claims.
+            // Get the current user's email from the JWT claims.
 
-            // This assumes your authentication token contains a claim for the user's email.
+            // This assumes your authentication token contains a claim for the user's email.
 
-            var userEmail = User.FindFirst(ClaimTypes.Email)?.Value;
+            var userEmail = User.FindFirst(ClaimTypes.Email)?.Value;
 
 
 
@@ -414,9 +435,9 @@ namespace SmartParcel.API.Controllers
 
 
 
-            // Fetch parcels where SenderEmail matches the authenticated user's email
+            // Fetch parcels where SenderEmail matches the authenticated user's email
 
-            var parcels = await _context.Parcels
+            var parcels = await _context.Parcels
 
                     .Where(p => p.SenderEmail == userEmail)
 
@@ -428,11 +449,11 @@ namespace SmartParcel.API.Controllers
 
             {
 
-                // It's usually better to return an empty array (Ok) than NotFound for an empty list
+                // It's usually better to return an empty array (Ok) than NotFound for an empty list
 
-                return Ok(new List<Parcel>()); // Return an empty list if no parcels found
+                return Ok(new List<Parcel>()); // Return an empty list if no parcels found
 
-            }
+            }
 
 
 
@@ -441,6 +462,6 @@ namespace SmartParcel.API.Controllers
         }
 
     }
-
+ 
 }
 
