@@ -2,16 +2,35 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SmartParcel.API.Data;
-using System.Text;
 using System; // For InvalidOperationException
+using System.Text;
+using SmartParcel.API.Services.Implementations;
+using SmartParcel.API.Services.Interfaces;
+using System.Drawing;
+using System.Runtime.InteropServices;
 
 var builder = WebApplication.CreateBuilder(args);
+if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+{
+    AppContext.SetSwitch("System.Drawing.EnableUnixSupport", true);
+}
+
 
 // ✅ 1. Configure EF Core with PostgreSQL
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// Add this line with your other service registrations
+builder.Services.AddScoped<IEmailService, EmailService>();
+
+// Add System.Drawing configuration for cross-platform support
+if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+{
+    AppContext.SetSwitch("System.Drawing.EnableUnixSupport", true);
+}
+
 // ✅ 2. Configure JWT Authentication
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -77,6 +96,15 @@ builder.Services.AddCors(options =>
                                 .AllowAnyMethod()
                                 .AllowCredentials(); // FIX: Added AllowCredentials for auth headers
                       });
+
+    options.AddPolicy("AllowAll",
+        builder =>
+        {
+            builder
+                .AllowAnyOrigin()
+                .AllowAnyMethod()
+                .AllowAnyHeader();
+        });
 });
 
 var app = builder.Build();
@@ -90,7 +118,7 @@ if (app.Environment.IsDevelopment())
 
 // ✅ Middleware order matters!
 // FIX: Use the named CORS policy
-app.UseCors(MyAllowSpecificOrigins);
+app.UseCors("AllowAll");
 
 // ✅ Enable Authentication & Authorization
 app.UseAuthentication();

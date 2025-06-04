@@ -25,8 +25,8 @@ namespace SmartParcel.API.Data
                 entity.HasKey(e => e.Id);
 
                 // Explicitly tell EF Core that Parcel.Id (Guid) is NOT database-generated
-                entity.Property(e => e.Id)
-                      .ValueGeneratedNever(); // <--- ADD THIS LINE FOR Parcel.Id
+                //entity.Property(e => e.Id)
+                      //.ValueGeneratedNever(); // <--- ADD THIS LINE FOR Parcel.Id
 
                 // Required properties
                 entity.Property(e => e.TrackingId).IsRequired();
@@ -56,6 +56,17 @@ namespace SmartParcel.API.Data
 
                 entity.Property(e => e.UpdatedAt)
                     .IsRequired(false);
+                // Configure OTP fields
+                entity.Property(e => e.DeliveryOTP)
+                    .IsRequired(false);
+
+                entity.Property(e => e.OTPGeneratedAt)
+                    .IsRequired(false);
+
+                entity.Property(e => e.IsOTPVerified)
+                    .HasDefaultValue(false);
+
+
 
                 // Optional: Ensure TrackingId is unique and indexed
                 entity.HasIndex(e => e.TrackingId).IsUnique();
@@ -64,9 +75,10 @@ namespace SmartParcel.API.Data
                 // entity.HasMany(p => p.History)
                 //       .WithOne(ph => ph.Parcel)
                 //       .HasForeignKey(ph => ph.ParcelTrackingId)
-                //       .HasPrincipalKey(p => p.TrackingId);
+                //
+                //.HasPrincipalKey(p => p.TrackingId);
             });
-
+        }
             // Optional: You can also explicitly configure User.Id if you want, though 'int' usually works by default
             // modelBuilder.Entity<User>(entity =>
             // {
@@ -85,4 +97,3 @@ namespace SmartParcel.API.Data
             // });
         }
     }
-}
