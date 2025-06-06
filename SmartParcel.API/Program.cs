@@ -20,6 +20,13 @@ if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || RuntimeInformation.IsOS
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// ✅ 2. Configure Response Compression (Move this before app.Build())
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+});
+
+
 // Add this line with your other service registrations
 builder.Services.AddScoped<IEmailService, EmailService>();
 
@@ -101,28 +108,32 @@ builder.Services.AddCors(options =>
         builder =>
         {
             builder
-                .AllowAnyOrigin()
-                .AllowAnyMethod()
-                .AllowAnyHeader();
+                .SetIsOriginAllowed(origin => true) // Instead of AllowAnyOrigin
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials(); // Now compatib
         });
-});
+  
+    });
 
-var app = builder.Build();
- 
-// ✅ Enable Swagger only in development
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    var app = builder.Build();
+
+    // ✅ Enable Swagger only in development
+    if (app.Environment.IsDevelopment())
+    {
+        app.UseSwagger();
+        app.UseSwaggerUI();
+
+    }
+
 
 // ✅ Middleware order matters!
 // FIX: Use the named CORS policy
+app.UseResponseCompression();
+app.UseHttpsRedirection(); // Move this before CORS
 app.UseCors("AllowAll");
-
-// ✅ Enable Authentication & Authorization
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
 app.Run();
+

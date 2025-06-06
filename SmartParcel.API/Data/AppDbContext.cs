@@ -14,7 +14,7 @@ namespace SmartParcel.API.Data
         public DbSet<Parcel> Parcels { get; set; }
         public DbSet<Handover> Handovers { get; set; }
         public DbSet<TamperAlert> TamperAlerts { get; set; }
-        // public DbSet<ParcelHistory> ParcelHistory { get; set; } // <--- Add this back if you plan to use ParcelHistory
+        public DbSet<ParcelHistory> ParcelHistory { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -26,7 +26,7 @@ namespace SmartParcel.API.Data
 
                 // Explicitly tell EF Core that Parcel.Id (Guid) is NOT database-generated
                 //entity.Property(e => e.Id)
-                      //.ValueGeneratedNever(); // <--- ADD THIS LINE FOR Parcel.Id
+                //.ValueGeneratedNever(); // <--- ADD THIS LINE FOR Parcel.Id
 
                 // Required properties
                 entity.Property(e => e.TrackingId).IsRequired();
@@ -66,34 +66,36 @@ namespace SmartParcel.API.Data
                 entity.Property(e => e.IsOTPVerified)
                     .HasDefaultValue(false);
 
-
-
                 // Optional: Ensure TrackingId is unique and indexed
                 entity.HasIndex(e => e.TrackingId).IsUnique();
+            });
 
-                // If you re-introduce ParcelHistory, its configuration would go here.
-                // entity.HasMany(p => p.History)
-                //       .WithOne(ph => ph.Parcel)
-                //       .HasForeignKey(ph => ph.ParcelTrackingId)
-                //
-                //.HasPrincipalKey(p => p.TrackingId);
+            modelBuilder.Entity<ParcelHistory>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+
+                // Required properties with proper configuration
+                entity.Property(e => e.TrackingId).IsRequired();
+                entity.Property(e => e.Status).IsRequired();
+                entity.Property(e => e.Timestamp)
+                      .IsRequired()
+                      .HasDefaultValueSql("CURRENT_TIMESTAMP AT TIME ZONE 'UTC'"); // Important for PostgreSQL
+
+                // Optional properties 
+                entity.Property(e => e.Location).IsRequired(false);
+                entity.Property(e => e.Notes).IsRequired(false);
+                entity.Property(e => e.HandledBy).IsRequired(false);
+
+                // Relationship
+                entity.HasOne(ph => ph.Parcel)
+                      .WithMany()
+                      .HasForeignKey(ph => ph.TrackingId)
+                      .HasPrincipalKey(p => p.TrackingId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                // Indexes for better performance
+                entity.HasIndex(ph => new { ph.TrackingId, ph.Timestamp });
             });
         }
-            // Optional: You can also explicitly configure User.Id if you want, though 'int' usually works by default
-            // modelBuilder.Entity<User>(entity =>
-            // {
-            //     entity.Property(u => u.Id)
-            //           .ValueGeneratedOnAdd(); // For int primary keys, this is usually the default
-            // });
-
-            // If Handover and TamperAlert also have Guid primary keys, you'd add similar configurations for them:
-            // modelBuilder.Entity<Handover>(entity =>
-            // {
-            //     entity.Property(e => e.Id).ValueGeneratedNever();
-            // });
-            // modelBuilder.Entity<TamperAlert>(entity =>
-            // {
-            //     entity.Property(e => e.Id).ValueGeneratedNever();
-            // });
-        }
     }
+}

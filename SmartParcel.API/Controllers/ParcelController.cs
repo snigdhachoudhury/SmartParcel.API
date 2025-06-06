@@ -79,12 +79,13 @@ namespace SmartParcel.API.Controllers
                 DeliveryLocation = request.DeliveryLocation ?? throw new ArgumentNullException(nameof(request.DeliveryLocation)),
                 ExpectedPickupDate = request.ExpectedPickupDate,
                 ExpectedDeliveryDate = request.ExpectedDeliveryDate,
-                Status = "Created",
+                Status = ParcelStatus.Created,
                 CreatedAt = DateTime.UtcNow
             };
 
             await _context.Parcels.AddAsync(parcel);
             await _context.SaveChangesAsync();
+            await RecordParcelHistory(trackingId, ParcelStatus.Created, request.PickupLocation);
 
             return Ok(new { parcel.TrackingId, QRCode = qrCodeBase64, Message = "Parcel created successfully." });
         }
@@ -174,16 +175,20 @@ namespace SmartParcel.API.Controllers
                 return NotFound(new { Message = "Parcel not found." });
             }
 
-            parcel.Status = "Scanned";  // Changed from "Delivered" to "Scanned"
+            var handlerEmail = User.FindFirst(ClaimTypes.Email)?.Value;
+            parcel.Status = ParcelStatus.Scanned;
             parcel.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
+            await RecordParcelHistory(trackingId, ParcelStatus.Scanned, notes: $"Scanned by {handlerEmail}");
 
             return Ok(new
             {
                 parcel.TrackingId,
                 parcel.Status,
                 Message = "Parcel scanned successfully."
+
+
             });
         }
 
@@ -211,9 +216,10 @@ namespace SmartParcel.API.Controllers
 
 
 
-            parcel.Status = "HandedOver";
+            parcel.Status = ParcelStatus.HandedOver;
 
-            await _context.SaveChangesAsync(); // Asynchronous save
+            await _context.SaveChangesAsync();
+            await RecordParcelHistory(trackingId, ParcelStatus.HandedOver); // Add this line here
 
 
 
@@ -309,6 +315,7 @@ namespace SmartParcel.API.Controllers
 
 
             await _context.SaveChangesAsync();
+            await RecordParcelHistory(trackingId, request.Status, request.Location, request.Notes); // Add this line here
 
 
 
@@ -472,7 +479,7 @@ namespace SmartParcel.API.Controllers
             if (parcel == null)
                 return NotFound(new { Message = "Parcel not found." });
 
-            if (parcel.Status == "Delivered")
+            if (parcel.Status == ParcelStatus.Delivered)
                 return BadRequest(new { Message = "Parcel is already delivered." });
 
             // Generate 6-digit OTP
@@ -480,9 +487,10 @@ namespace SmartParcel.API.Controllers
             parcel.DeliveryOTP = otp;
             parcel.OTPGeneratedAt = DateTime.UtcNow;
             parcel.IsOTPVerified = false;
-            parcel.Status = "Out for Delivery";
+            parcel.Status = ParcelStatus.OutForDelivery;
 
             await _context.SaveChangesAsync();
+            await RecordParcelHistory(trackingId, ParcelStatus.OutforDelivery); // Add this line here
 
             try
             {
@@ -515,7 +523,7 @@ namespace SmartParcel.API.Controllers
             if (parcel == null)
                 return NotFound(new { Message = "Parcel not found." });
 
-            if (parcel.Status == "Delivered")
+            if (parcel.Status == ParcelStatus.Delivered)
                 return BadRequest(new { Message = "Parcel is already delivered." });
 
             // Verify OTP
@@ -523,16 +531,17 @@ namespace SmartParcel.API.Controllers
                 return BadRequest(new { Message = "Invalid OTP." });
 
             // Check if OTP is expired (30 minutes validity)
-            if (parcel.OTPGeneratedAt?.AddMinutes(30) < DateTime.UtcNow)
+            if (parcel.OTPGeneratedAt?.AddMinutes(60) < DateTime.UtcNow)
                 return BadRequest(new { Message = "OTP has expired. Please request a new one." });
 
             // Update parcel status
-            parcel.Status = "Delivered";
+            parcel.Status = ParcelStatus.Delivered;
             parcel.ActualDeliveryDate = DateTime.UtcNow;
             parcel.IsOTPVerified = true;
             parcel.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
+            await RecordParcelHistory(request.TrackingId, ParcelStatus.Delivered, parcel.DeliveryLocation); // Add this line here
 
             return Ok(new { Message = "Delivery confirmed successfully." });
         }
@@ -594,5 +603,86 @@ namespace SmartParcel.API.Controllers
                 return StatusCode(500, new { Message = $"Error processing QR code: {ex.Message}" });
             }
         }
+
+        // Fix the RecordParcelHistory method to correctly create and add ParcelHistory objects instead of trying to add a list of anonymous types.
+        private async Task RecordParcelHistory(string trackingId, string status, string? location = null, string? notes = null)
+        {
+            try
+            {
+                var handlerEmail = User.FindFirst(ClaimTypes.Email)?.Value;
+
+                // Create a new ParcelHistory object
+                var history = new ParcelHistory
+                {
+                    TrackingId = trackingId,
+                    Status = status,
+                    Location = location,
+                    Notes = notes,
+                    HandledBy = handlerEmail,
+                    Timestamp = DateTime.UtcNow
+                };
+
+                // Add the ParcelHistory object to the database
+                await _context.ParcelHistory.AddAsync(history);
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Failed to record parcel history for tracking ID {trackingId}");
+                // Don't throw - we don't want to fail the main operation if history recording fails
+            }
+        }
+
+        // Public endpoint to get parcel history
+        [HttpGet("{trackingId}/history")]
+        [Authorize(Roles = "Admin, Sender, Handler")]
+        public async Task<IActionResult> GetParcelHistory(string trackingId)
+        {
+            try
+            {
+                _logger.LogInformation($"Getting history for parcel {trackingId}");
+
+                // Check if the parcel exists first
+                var parcelExists = await _context.Parcels.AnyAsync(p => p.TrackingId == trackingId);
+                if (!parcelExists)
+                {
+                    _logger.LogWarning($"Parcel {trackingId} not found");
+                    return NotFound(new { Message = "Parcel not found." });
+                }
+
+                // Use AsNoTracking() to avoid entity tracking issues
+                var history = await _context.ParcelHistory
+                    .AsNoTracking()
+                    .Where(h => h.TrackingId == trackingId)
+                    .OrderByDescending(h => h.Timestamp)
+                    .ToListAsync();
+
+                // Process the TimeAgo calculation in memory instead of in the query
+                var result = history.Select(h => new
+                {
+                    h.Id,
+                    h.Status,
+                    h.Location,
+                    h.Notes,
+                    h.HandledBy,
+                    h.Timestamp,
+                    TimeAgo = DateTime.UtcNow.Subtract(h.Timestamp).TotalHours < 24
+                        ? $"{Math.Round(DateTime.UtcNow.Subtract(h.Timestamp).TotalHours, 1)} hours ago"
+                        : $"{Math.Round(DateTime.UtcNow.Subtract(h.Timestamp).TotalDays, 1)} days ago"
+                }).ToList();
+
+                _logger.LogInformation($"Found {result.Count} history records");
+                return Ok(new { Message = $"Found {result.Count} history records", History = result });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error retrieving history for tracking ID {trackingId}");
+                return StatusCode(500, new { Message = $"Error retrieving parcel history: {ex.Message}", StackTrace = ex.StackTrace });
+            }
+        }
     }
 }
+
+
+    
+
