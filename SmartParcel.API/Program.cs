@@ -15,7 +15,6 @@ if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || RuntimeInformation.IsOS
     AppContext.SetSwitch("System.Drawing.EnableUnixSupport", true);
 }
 
-
 // ✅ 1. Configure EF Core with PostgreSQL
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -26,9 +25,9 @@ builder.Services.AddResponseCompression(options =>
     options.EnableForHttps = true;
 });
 
-
 // Add this line with your other service registrations
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<ITamperHandler, TamperHandler>();
 
 // Add System.Drawing configuration for cross-platform support
 if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
@@ -37,7 +36,6 @@ if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
 }
 
 // ✅ 2. Configure JWT Authentication
-
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -125,7 +123,6 @@ builder.Services.AddCors(options =>
         app.UseSwaggerUI();
 
     }
-
 
 // ✅ Middleware order matters!
 // FIX: Use the named CORS policy

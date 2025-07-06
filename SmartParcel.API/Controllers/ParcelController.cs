@@ -683,6 +683,3 @@ namespace SmartParcel.API.Controllers
     }
 }
 
-
-    
-

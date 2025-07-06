@@ -8,4 +8,9 @@ public static class ParcelStatus
     public const string Returned = "Returned";
 
     public static string OutforDelivery { get; internal set; }
+
+    public const string Tampered = "Tampered";
+    public const string TamperResolved = "TamperResolved";
+    public const string ReturnedDueToDamage = "ReturnedDueToDamage";
+    public const string Lost = "Lost";
 }
