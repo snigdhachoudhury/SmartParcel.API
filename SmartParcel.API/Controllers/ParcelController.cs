@@ -14,38 +14,32 @@ using ZXing;
 using ZXing.Common;
 using ZXing.Windows.Compatibility;
 
-
 namespace SmartParcel.API.Controllers
-
 {
-
     [ApiController]
-
     [Route("api/[controller]")]
-
     public class ParcelController : ControllerBase
-
     {
-
         private readonly AppDbContext _context;
         private readonly IEmailService _emailService;
         private readonly ILogger<ParcelController> _logger;
+        private readonly IPricingService _pricingService;
         private readonly Random _random = new Random();
 
-        public ParcelController(AppDbContext context, IEmailService emailService, ILogger<ParcelController> logger)
+        public ParcelController(
+            AppDbContext context, 
+            IEmailService emailService, 
+            ILogger<ParcelController> logger,
+            IPricingService pricingService)
         {
             _context = context;
             _emailService = emailService;
             _logger = logger;
+            _pricingService = pricingService;
         }
 
-
-
-
         // SENDER: Create a new parcel using a DTO
-
         [Authorize(Roles = "Sender")]
-
         [HttpPost("create")]
         public async Task<IActionResult> CreateParcel([FromBody] CreateParcelRequest request)
         {
@@ -66,13 +60,28 @@ namespace SmartParcel.API.Controllers
             {
                 request.ExpectedDeliveryDate = DateTime.SpecifyKind(request.ExpectedDeliveryDate, DateTimeKind.Utc);
             }
+            
+            // Calculate shipping cost
+            decimal shippingCost;
+            try 
+            {
+                shippingCost = await _pricingService.CalculateShippingCostAsync(
+                    request.Weight,
+                    request.PricingTierId,
+                    request.PickupLocation,
+                    request.DeliveryLocation
+                );
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
 
             var parcel = new Parcel
             {
                 TrackingId = trackingId,
                 SenderEmail = request.SenderEmail ?? throw new ArgumentNullException(nameof(request.SenderEmail)),
                 RecipientEmail = request.RecipientEmail ?? throw new ArgumentNullException(nameof(request.RecipientEmail)),
-
                 Description = request.Description ?? throw new ArgumentNullException(nameof(request.Description)),
                 Weight = request.Weight.ToString(),
                 PickupLocation = request.PickupLocation ?? throw new ArgumentNullException(nameof(request.PickupLocation)),
@@ -80,90 +89,61 @@ namespace SmartParcel.API.Controllers
                 ExpectedPickupDate = request.ExpectedPickupDate,
                 ExpectedDeliveryDate = request.ExpectedDeliveryDate,
                 Status = ParcelStatus.Created,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                // Add new pricing fields
+                PricingTierId = request.PricingTierId,
+                ShippingCost = shippingCost
             };
 
             await _context.Parcels.AddAsync(parcel);
             await _context.SaveChangesAsync();
             await RecordParcelHistory(trackingId, ParcelStatus.Created, request.PickupLocation);
 
-            return Ok(new { parcel.TrackingId, QRCode = qrCodeBase64, Message = "Parcel created successfully." });
+            return Ok(new { 
+                parcel.TrackingId, 
+                QRCode = qrCodeBase64,
+                ShippingCost = shippingCost,
+                Message = "Parcel created successfully." 
+            });
         }
 
-
-
-        // SENDER: Create a new parcel using the Parcel model directly (less common for client-side)
-
-        [Authorize(Roles = "Sender")]
-
+        // SENDER: Create a new parcel using the Parcel model directly (less common for client-side)
+        [Authorize(Roles = "Sender")]
         [HttpPost("create-with-parcel")]
-
         public IActionResult CreateParcel(Parcel parcel)
-
         {
-
             parcel.TrackingId = Guid.NewGuid().ToString().Substring(0, 8); // Generate tracking ID
-
             parcel.CreatedAt = DateTime.UtcNow; // Ensure CreatedAt is set
 
-
-
             _context.Parcels.Add(parcel);
-
             _context.SaveChanges(); // Synchronous save
 
-
-
             return Ok(new { TrackingId = parcel.TrackingId, Message = "Parcel created successfully." });
-
         }
 
-
-
-        // SENDER: Track a single parcel by tracking ID (returns partial data)
-
-        [Authorize(Roles = "Sender")]
-
+        // SENDER: Track a single parcel by tracking ID (returns partial data)
+        [Authorize(Roles = "Sender")]
         [HttpGet("track/{trackingId}")]
-
         public async Task<IActionResult> TrackParcel(string trackingId)
-
         {
-
             var parcel = await _context.Parcels.FirstOrDefaultAsync(p => p.TrackingId == trackingId);
 
             if (parcel == null)
-
                 return NotFound(new { Message = "Parcel not found." });
 
-
-
             return Ok(new
-
             {
-
                 parcel.TrackingId,
-
                 parcel.Status,
-
                 parcel.DeliveryLocation,
-
                 ExpectedPickup = parcel.ExpectedPickupDate,
-
                 ExpectedDelivery = parcel.ExpectedDeliveryDate,
-
                 ActualPickup = parcel.ActualPickupDate,
-
                 ActualDelivery = parcel.ActualDeliveryDate
-
             });
-
         }
 
-
-
         // HANDLER: Scan a parcel (update status to "Scanned")
-
         [Authorize(Roles = "Handler")]
         [HttpPost("scan/{trackingId}")]
         public async Task<IActionResult> ScanParcel(string trackingId)

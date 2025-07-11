@@ -15,6 +15,7 @@ namespace SmartParcel.API.Data
         public DbSet<Handover> Handovers { get; set; }
         public DbSet<TamperAlert> TamperAlerts { get; set; }
         public DbSet<ParcelHistory> ParcelHistory { get; set; }
+        public DbSet<PricingTier> PricingTiers { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -68,6 +69,20 @@ namespace SmartParcel.API.Data
 
                 // Optional: Ensure TrackingId is unique and indexed
                 entity.HasIndex(e => e.TrackingId).IsUnique();
+
+                // Add pricing fields
+                entity.Property(e => e.ShippingCost)
+                      .HasColumnType("decimal(18,2)")
+                      .HasDefaultValue(0);
+                      
+                entity.Property(e => e.PricingTierId)
+                      .IsRequired(false);
+                      
+                entity.HasOne(p => p.PricingTier)
+                      .WithMany()
+                      .HasForeignKey(p => p.PricingTierId)
+                      .IsRequired(false)
+                      .OnDelete(DeleteBehavior.SetNull);
             });
 
             modelBuilder.Entity<ParcelHistory>(entity =>
@@ -95,6 +110,14 @@ namespace SmartParcel.API.Data
 
                 // Indexes for better performance
                 entity.HasIndex(ph => new { ph.TrackingId, ph.Timestamp });
+            });
+
+            modelBuilder.Entity<PricingTier>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Name).IsRequired();
+                entity.Property(e => e.BasePrice).HasColumnType("decimal(18,2)");
+                entity.Property(e => e.PricePerKg).HasColumnType("decimal(18,2)");
             });
         }
     }

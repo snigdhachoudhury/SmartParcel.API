@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SmartParcel.API.Data;
@@ -11,9 +12,11 @@ using SmartParcel.API.Data;
 namespace SmartParcel.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250706201152_AddPricingFeatures")]
+    partial class AddPricingFeatures
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -105,9 +108,7 @@ namespace SmartParcel.API.Migrations
                         .HasColumnType("text");
 
                     b.Property<decimal>("ShippingCost")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("decimal(18,2)")
-                        .HasDefaultValue(0m);
+                        .HasColumnType("numeric");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -182,7 +183,7 @@ namespace SmartParcel.API.Migrations
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<decimal>("BasePrice")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("numeric");
 
                     b.Property<string>("Description")
                         .HasColumnType("text");
@@ -198,7 +199,7 @@ namespace SmartParcel.API.Migrations
                         .HasColumnType("text");
 
                     b.Property<decimal>("PricePerKg")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("numeric");
 
                     b.HasKey("Id");
 
@@ -273,8 +274,7 @@ namespace SmartParcel.API.Migrations
                 {
                     b.HasOne("SmartParcel.API.Models.PricingTier", "PricingTier")
                         .WithMany()
-                        .HasForeignKey("PricingTierId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .HasForeignKey("PricingTierId");
 
                     b.Navigation("PricingTier");
                 });

@@ -28,6 +28,7 @@ builder.Services.AddResponseCompression(options =>
 // Add this line with your other service registrations
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ITamperHandler, TamperHandler>();
+builder.Services.AddScoped<IPricingService, PricingService>();
 
 // Add System.Drawing configuration for cross-platform support
 if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))

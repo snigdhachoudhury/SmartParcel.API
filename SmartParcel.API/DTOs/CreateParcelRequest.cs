@@ -32,6 +32,9 @@ namespace SmartParcel.API.DTOs
         [Required(ErrorMessage = "Expected delivery date is required.")]
         public DateTime ExpectedDeliveryDate { get; set; }
 
+        [Required(ErrorMessage = "Pricing tier is required.")]
+        public int PricingTierId { get; set; }
+
         public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
         {
             if (ExpectedDeliveryDate <= ExpectedPickupDate)

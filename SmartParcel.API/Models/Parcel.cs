@@ -23,9 +23,14 @@ namespace SmartParcel.API.Models
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
 
-        // OTP properties - Add these properties
+        // OTP properties
         public string? DeliveryOTP { get; set; }
         public DateTime? OTPGeneratedAt { get; set; }
         public bool IsOTPVerified { get; set; }
+
+        // Shipping cost and pricing tier properties
+        public decimal ShippingCost { get; set; }
+        public int? PricingTierId { get; set; }
+        public PricingTier? PricingTier { get; set; } // Navigation property
     }
 }
