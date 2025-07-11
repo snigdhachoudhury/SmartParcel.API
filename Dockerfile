@@ -1,17 +1,17 @@
-# Use the official .NET ASP.NET runtime image as base
-FROM mcr.microsoft.com/dotnet/aspnet:7.0 AS base
+# Use the official .NET 8 ASP.NET runtime as base
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
 WORKDIR /app
 EXPOSE 80
 
-# Build stage
-FROM mcr.microsoft.com/dotnet/sdk:7.0 AS build
+# Use .NET 8 SDK to build
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Copy csproj and restore dependencies
+# Copy and restore
 COPY SmartParcel.API.csproj ./
 RUN dotnet restore
 
-# Copy everything else and publish
+# Copy everything else and build
 COPY . ./
 RUN dotnet publish -c Release -o /app/publish
 
