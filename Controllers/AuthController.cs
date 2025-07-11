@@ -1,16 +1,14 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore; // Added for async EF Core methods
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SmartParcel.API.Data;
 using SmartParcel.API.DTOs;
 using SmartParcel.API.Models;
 using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
-using System.Linq; // Added for LINQ extension methods
-using System.Security.Claims; // Required for ClaimTypes
+using System.Security.Claims;
 using System.Text;
-using System.Threading.Tasks; // Added for Task
 
 namespace SmartParcel.API.Controllers
 {
@@ -53,24 +51,35 @@ namespace SmartParcel.API.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
-            if (string.IsNullOrEmpty(request.Email) || string.IsNullOrEmpty(request.Password))
-                return BadRequest("Email and password are required.");
+            try
+            {
+                if (string.IsNullOrEmpty(request.Email) || string.IsNullOrEmpty(request.Password))
+                    return BadRequest("Email and password are required.");
 
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
 
-            if (user == null || string.IsNullOrEmpty(user.PasswordHash))
-                return Unauthorized("Invalid credentials.");
+                if (user == null || string.IsNullOrEmpty(user.PasswordHash))
+                    return Unauthorized("Invalid credentials.");
 
-            var passwordMatch = _hasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
-            if (passwordMatch == PasswordVerificationResult.Failed)
-                return Unauthorized("Incorrect password.");
+                var passwordMatch = _hasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
+                if (passwordMatch == PasswordVerificationResult.Failed)
+                    return Unauthorized("Incorrect password.");
 
-            user.Role = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(user.Role.ToLowerInvariant());
+                user.Role = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(user.Role.ToLowerInvariant());
 
-            var token = GenerateJwtToken(user);
-            return Ok(new { token });
+                var token = GenerateJwtToken(user);
+                return Ok(new { token });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    Message = "An error occurred while logging in.",
+                    Error = ex.Message,
+                    StackTrace = ex.StackTrace
+                });
+            }
         }
-     
 
         private string GenerateJwtToken(User user)
         {
@@ -85,7 +94,7 @@ namespace SmartParcel.API.Controllers
             {
                 new Claim(JwtRegisteredClaimNames.Sub, user.Email ?? string.Empty),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                new Claim(ClaimTypes.Email, user.Email ?? string.Empty), // FIX: Explicitly add ClaimTypes.Email
+                new Claim(ClaimTypes.Email, user.Email ?? string.Empty),
                 new Claim(ClaimTypes.Role, user.Role ?? string.Empty)
             };
 
