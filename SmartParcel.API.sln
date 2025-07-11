@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.14.36121.58 d17.14
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartParcel.API", "SmartParcel.API\SmartParcel.API.csproj", "{4D4BCC2F-5E5D-4EA0-ADD7-9DF111ADD641}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartParcel.API", "SmartParcel.API.csproj", "{F7522CC4-837B-987A-039B-4C2C15256C15}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -11,15 +11,15 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{4D4BCC2F-5E5D-4EA0-ADD7-9DF111ADD641}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{4D4BCC2F-5E5D-4EA0-ADD7-9DF111ADD641}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{4D4BCC2F-5E5D-4EA0-ADD7-9DF111ADD641}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{4D4BCC2F-5E5D-4EA0-ADD7-9DF111ADD641}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F7522CC4-837B-987A-039B-4C2C15256C15}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F7522CC4-837B-987A-039B-4C2C15256C15}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F7522CC4-837B-987A-039B-4C2C15256C15}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F7522CC4-837B-987A-039B-4C2C15256C15}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {84EE1F9E-EFA5-4C74-9055-6D9E4556E80C}
+		SolutionGuid = {22936509-D82F-432A-BB3B-DA0860B89537}
 	EndGlobalSection
 EndGlobal
